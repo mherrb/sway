@@ -13,7 +13,7 @@ swaybar_deps = [
 	math,
 	pango,
 	pangocairo,
-	rt,
+#	rt,
 	wayland_client,
 	wayland_cursor
 ]

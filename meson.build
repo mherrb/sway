@@ -81,7 +81,7 @@ drm_full = dependency('libdrm') # only needed for drm_fourcc.h
 drm = drm_full.partial_dependency(compile_args: true, includes: true)
 libudev = wlroots_features['libinput_backend'] ? dependency('libudev') : null_dep
 math = cc.find_library('m')
-rt = cc.find_library('rt')
+# rt = cc.find_library('rt')
 xcb_icccm = dependency('xcb-icccm', required: get_option('xwayland'))
 threads = dependency('threads') # for pthread_setschedparam
 

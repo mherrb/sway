@@ -12,7 +12,7 @@ executable(
 		cairo,
 		pango,
 		pangocairo,
-		rt,
+#		rt,
 		wayland_client,
 		wayland_cursor,
 	],

@@ -4,7 +4,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <libgen.h>
+#ifndef __OpenBSD__
 #include <wordexp.h>
+#else
+#include <glob.h>
+#endif
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -656,6 +660,7 @@ void load_include_configs(const char *path, struct sway_config *config,
 		goto cleanup;
 	}
 
+#ifndef __OpenBSD__
 	wordexp_t p;
 	if (wordexp(path, &p, 0) == 0) {
 		char **w = p.we_wordv;
@@ -665,7 +670,17 @@ void load_include_configs(const char *path, struct sway_config *config,
 		}
 		wordfree(&p);
 	}
-
+#else
+	glob_t p;
+	if (glob(path, GLOB_DOOFFS, NULL, &p) == 0) {
+		char **w = p.gl_pathv;
+		size_t i;
+		for (i = 0; i < p.gl_pathc; ++i) {
+			load_include_config(w[i], parent_dir, config, swaynag);
+		}
+		globfree(&p);
+	}
+#endif
 	// Attempt to restore working directory before returning.
 	if (chdir(wd) < 0) {
 		sway_log(SWAY_ERROR, "failed to change working directory");
