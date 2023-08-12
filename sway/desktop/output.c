@@ -883,12 +883,9 @@ static void update_output_manager_config(struct sway_server *server) {
 		wlr_output_layout_get_box(root->output_layout,
 			output->wlr_output, &output_box);
 		// We mark the output enabled when it's switched off but not disabled
-		config_head->state.enabled = output->current_mode != NULL && output->enabled;
-		config_head->state.mode = output->current_mode;
-		if (!wlr_box_empty(&output_box)) {
-			config_head->state.x = output_box.x;
-			config_head->state.y = output_box.y;
-		}
+		config_head->state.enabled = !wlr_box_empty(&output_box);
+		config_head->state.x = output_box.x;
+		config_head->state.y = output_box.y;
 	}
 
 	wlr_output_manager_v1_set_configuration(server->output_manager_v1, config);
@@ -926,31 +923,6 @@ static void handle_destroy(struct wl_listener *listener, void *data) {
 	update_output_manager_config(server);
 }
 
-static void handle_mode(struct sway_output *output) {
-	if (!output->enabled && !output->enabling) {
-		struct output_config *oc = find_output_config(output);
-		if (output->wlr_output->current_mode != NULL &&
-				(!oc || oc->enabled)) {
-			// We want to enable this output, but it didn't work last time,
-			// possibly because we hadn't enough CRTCs. Try again now that the
-			// output has a mode.
-			sway_log(SWAY_DEBUG, "Output %s has gained a CRTC, "
-				"trying to enable it", output->wlr_output->name);
-			apply_output_config(oc, output);
-		}
-		return;
-	}
-	if (!output->enabled) {
-		return;
-	}
-
-	arrange_layers(output);
-	arrange_output(output);
-	transaction_commit_dirty();
-
-	update_output_manager_config(output->server);
-}
-
 static void update_textures(struct sway_container *con, void *data) {
 	container_update_title_textures(con);
 	container_update_marks_textures(con);
@@ -966,10 +938,6 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	struct sway_output *output = wl_container_of(listener, output, commit);
 	struct wlr_output_event_commit *event = data;
 
-	if (event->committed & WLR_OUTPUT_STATE_MODE) {
-		handle_mode(output);
-	}
-
 	if (!output->enabled) {
 		return;
 	}
@@ -979,7 +947,7 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 		output_for_each_surface(output, update_output_scale_iterator, NULL);
 	}
 
-	if (event->committed & (WLR_OUTPUT_STATE_TRANSFORM | WLR_OUTPUT_STATE_SCALE)) {
+	if (event->committed & (WLR_OUTPUT_STATE_MODE | WLR_OUTPUT_STATE_TRANSFORM | WLR_OUTPUT_STATE_SCALE)) {
 		arrange_layers(output);
 		arrange_output(output);
 		transaction_commit_dirty();
