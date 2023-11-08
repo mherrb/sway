@@ -17,7 +17,6 @@
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
-#include <wlr/types/wlr_idle.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
@@ -78,7 +77,7 @@ static bool filter_global(const struct wl_client *client,
 		const struct wl_global *global, void *data) {
 #if HAVE_XWAYLAND
 	struct wlr_xwayland *xwayland = server.xwayland.wlr_xwayland;
-	if (global == xwayland->shell_v1->global) {
+	if (xwayland && global == xwayland->shell_v1->global) {
 		return xwayland->server != NULL && client == xwayland->server->client;
 	}
 #endif
@@ -145,7 +144,6 @@ bool server_init(struct sway_server *server) {
 
 	wlr_xdg_output_manager_v1_create(server->wl_display, root->output_layout);
 
-	server->idle = wlr_idle_create(server->wl_display);
 	server->idle_notifier_v1 = wlr_idle_notifier_v1_create(server->wl_display);
 	sway_idle_inhibit_manager_v1_init();
 
