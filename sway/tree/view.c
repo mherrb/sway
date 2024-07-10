@@ -399,6 +399,12 @@ void view_request_activate(struct sway_view *view, struct sway_seat *seat) {
 	transaction_commit_dirty();
 }
 
+void view_request_urgent(struct sway_view *view) {
+	if (config->focus_on_window_activation != FOWA_NONE) {
+		view_set_urgent(view, true);
+	}
+}
+
 void view_set_csd_from_server(struct sway_view *view, bool enabled) {
 	sway_log(SWAY_DEBUG, "Telling view %p to set CSD to %i", view, enabled);
 	if (view->xdg_decoration) {
@@ -881,6 +887,8 @@ void view_unmap(struct sway_view *view) {
 	wl_signal_emit_mutable(&view->events.unmap, view);
 
 	wl_list_remove(&view->surface_new_subsurface.link);
+
+	view->executed_criteria->length = 0;
 
 	if (view->urgent_timer) {
 		wl_event_source_remove(view->urgent_timer);

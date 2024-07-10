@@ -705,12 +705,21 @@ static bool is_touch_or_tablet_tool(struct sway_seat_device *seat_device) {
 	}
 }
 
-static void seat_apply_input_config(struct sway_seat *seat,
+static void seat_apply_input_mapping(struct sway_seat *seat,
 		struct sway_seat_device *sway_device) {
 	struct input_config *ic =
 		input_device_get_config(sway_device->input_device);
 
-	sway_log(SWAY_DEBUG, "Applying input config to %s",
+	switch (sway_device->input_device->wlr_device->type) {
+	case WLR_INPUT_DEVICE_POINTER:
+	case WLR_INPUT_DEVICE_TOUCH:
+	case WLR_INPUT_DEVICE_TABLET_TOOL:
+		break;
+	default:
+		return; // these devices don't support mappings
+	}
+
+	sway_log(SWAY_DEBUG, "Applying input mapping to %s",
 		sway_device->input_device->identifier);
 
 	const char *mapped_to_output = ic == NULL ? NULL : ic->mapped_to_output;
@@ -794,12 +803,9 @@ static void seat_apply_input_config(struct sway_seat *seat,
 
 static void seat_configure_pointer(struct sway_seat *seat,
 		struct sway_seat_device *sway_device) {
-	if ((seat->wlr_seat->capabilities & WL_SEAT_CAPABILITY_POINTER) == 0) {
-		seat_configure_xcursor(seat);
-	}
+	seat_configure_xcursor(seat);
 	wlr_cursor_attach_input_device(seat->cursor->cursor,
 		sway_device->input_device->wlr_device);
-	seat_apply_input_config(seat, sway_device);
 	wl_event_source_timer_update(
 			seat->cursor->hide_source, cursor_get_timeout(seat->cursor));
 }
@@ -834,7 +840,6 @@ static void seat_configure_switch(struct sway_seat *seat,
 	if (!seat_device->switch_device) {
 		sway_switch_create(seat, seat_device);
 	}
-	seat_apply_input_config(seat, seat_device);
 	sway_switch_configure(seat_device->switch_device);
 }
 
@@ -842,7 +847,6 @@ static void seat_configure_touch(struct sway_seat *seat,
 		struct sway_seat_device *sway_device) {
 	wlr_cursor_attach_input_device(seat->cursor->cursor,
 		sway_device->input_device->wlr_device);
-	seat_apply_input_config(seat, sway_device);
 }
 
 static void seat_configure_tablet_tool(struct sway_seat *seat,
@@ -853,7 +857,6 @@ static void seat_configure_tablet_tool(struct sway_seat *seat,
 	sway_configure_tablet(sway_device->tablet);
 	wlr_cursor_attach_input_device(seat->cursor->cursor,
 		sway_device->input_device->wlr_device);
-	seat_apply_input_config(seat, sway_device);
 }
 
 static void seat_configure_tablet_pad(struct sway_seat *seat,
@@ -910,6 +913,18 @@ void seat_configure_device(struct sway_seat *seat,
 			seat_configure_tablet_pad(seat, seat_device);
 			break;
 	}
+
+	seat_apply_input_mapping(seat, seat_device);
+}
+
+void seat_configure_device_mapping(struct sway_seat *seat,
+		struct sway_input_device *input_device) {
+	struct sway_seat_device *seat_device = seat_get_device(seat, input_device);
+	if (!seat_device) {
+		return;
+	}
+
+	seat_apply_input_mapping(seat, seat_device);
 }
 
 void seat_reset_device(struct sway_seat *seat,
@@ -1052,26 +1067,27 @@ void seat_configure_xcursor(struct sway_seat *seat) {
 			sway_log(SWAY_ERROR,
 				"Cannot create XCursor manager for theme '%s'", cursor_theme);
 		}
-	}
 
-	for (int i = 0; i < root->outputs->length; ++i) {
-		struct sway_output *sway_output = root->outputs->items[i];
-		struct wlr_output *output = sway_output->wlr_output;
-		bool result =
-			wlr_xcursor_manager_load(seat->cursor->xcursor_manager,
-				output->scale);
-		if (!result) {
-			sway_log(SWAY_ERROR,
-				"Cannot load xcursor theme for output '%s' with scale %f",
-				output->name, output->scale);
+
+		for (int i = 0; i < root->outputs->length; ++i) {
+			struct sway_output *sway_output = root->outputs->items[i];
+			struct wlr_output *output = sway_output->wlr_output;
+			bool result =
+				wlr_xcursor_manager_load(seat->cursor->xcursor_manager,
+					output->scale);
+			if (!result) {
+				sway_log(SWAY_ERROR,
+					"Cannot load xcursor theme for output '%s' with scale %f",
+					output->name, output->scale);
+			}
 		}
-	}
 
-	// Reset the cursor so that we apply it to outputs that just appeared
-	cursor_set_image(seat->cursor, NULL, NULL);
-	cursor_set_image(seat->cursor, "default", NULL);
-	wlr_cursor_warp(seat->cursor->cursor, NULL, seat->cursor->cursor->x,
-		seat->cursor->cursor->y);
+		// Reset the cursor so that we apply it to outputs that just appeared
+		cursor_set_image(seat->cursor, NULL, NULL);
+		cursor_set_image(seat->cursor, "default", NULL);
+		wlr_cursor_warp(seat->cursor->cursor, NULL, seat->cursor->cursor->x,
+			seat->cursor->cursor->y);
+	}
 }
 
 bool seat_is_input_allowed(struct sway_seat *seat,
